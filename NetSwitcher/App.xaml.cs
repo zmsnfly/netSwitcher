@@ -39,8 +39,6 @@ namespace NetSwitcher
             bool isOk = false;
             string appName = Process.GetCurrentProcess().MainModule.ModuleName;
             string appPath = Process.GetCurrentProcess().MainModule.FileName;
-            Trace.WriteLine(IsExistKey(appName));
-            Trace.WriteLine(appName);
             isOk = SetAutoStart(onOff, appName, appPath);
             return isOk;
         }
@@ -48,12 +46,10 @@ namespace NetSwitcher
         public static bool SetAutoStart(bool onOff, string appName, string appPath)
         {
             bool isOk = true;
-            //如果从没有设为开机启动设置到要设为开机启动
             if (!IsExistKey(appName) && onOff)
             {
                 isOk = SelfRunning(onOff, appName, @appPath);
             }
-            //如果从设为开机启动设置到不要设为开机启动
             else if (IsExistKey(appName) && !onOff)
             {
                 isOk = SelfRunning(onOff, appName, @appPath);
@@ -61,11 +57,6 @@ namespace NetSwitcher
             return isOk;
         }
 
-        /// <summary>
-        /// 判断注册键值对是否存在，即是否处于开机启动状态
-        /// </summary>
-        /// <param name="keyName">键值名</param>
-        /// <returns></returns>
         private static bool IsExistKey(string keyName)
         {
             try
@@ -101,13 +92,6 @@ namespace NetSwitcher
             }
         }
 
-        /// <summary>
-        /// 写入或删除注册表键值对,即设为开机启动或开机不启动
-        /// </summary>
-        /// <param name="isStart">是否开机启动</param>
-        /// <param name="exeName">应用程序名</param>
-        /// <param name="path">应用程序路径带程序名</param>
-        /// <returns></returns>
         private static bool SelfRunning(bool isStart, string exeName, string path)
         {
             try
@@ -118,13 +102,12 @@ namespace NetSwitcher
                 {
                     local.CreateSubKey("SOFTWARE//Microsoft//Windows//CurrentVersion//Run");
                 }
-                //若开机自启动则添加键值对
                 if (isStart)
                 {
                     key.SetValue(exeName, path);
                     key.Close();
                 }
-                else//否则删除键值对
+                else
                 {
                     string[] keyNames = key.GetValueNames();
                     foreach (string keyName in keyNames)
@@ -141,7 +124,6 @@ namespace NetSwitcher
             {
                 string ss = ex.Message;
                 return false;
-                //throw;
             }
 
             return true;
@@ -234,38 +216,71 @@ namespace NetSwitcher
 
         private void PerformSwitchNetwork()
         {
+            if (Status == "处理中") return;
             Status = "处理中";
+            bool is_current_connect = false;
             var connections = NetSharingMgr.EnumEveryConnection;
             foreach (INetConnection connection in connections)
             {
-                INetConnectionProps connProps = NetSharingMgr.get_NetConnectionProps(connection);
-                if (connProps.Name == "以太网")
+                var current_prop = NetSharingMgr.get_NetConnectionProps(connection);
+                if (current_prop.Name == "以太网")
                 {
-                    if(connProps.Status.ToString().Contains("DIS"))
+                    if(current_prop.Status.ToString().Contains("DIS"))
                     {
                         try
                         {
+                            is_current_connect = false;
                             connection.Connect();
-                            Status = "已连接";
                         }
                         catch { }
-
-                        break;
                     }
                     else
                     {
                         try
                         {
+                            is_current_connect = true;
                             connection.Disconnect();
-                            Status = "未连接";
                         }
                         catch { }
-                        
-                        
+                    }
+                    break;
+                }
+            }
+            while (true)
+            {
+                bool is_next_connect = false;
+                var connections1 = NetSharingMgr.EnumEveryConnection;
+                foreach (INetConnection connection in connections1)
+                {
+                    var current_prop = NetSharingMgr.get_NetConnectionProps(connection);
+                    if (current_prop.Name == "以太网")
+                    {
+                        if (current_prop.Status.ToString().Contains("DIS"))
+                        {
+                            is_next_connect = false;
+                        }
+                        else
+                        {
+                            is_next_connect = true;
+                        }
                         break;
                     }
                 }
+
+                if(is_next_connect != is_current_connect)
+                {
+                    if(is_next_connect)
+                    {
+                        Status = "已连接";
+                    }
+                    else
+                    {
+                        Status = "未连接";
+                    }
+                    break;
+                }
             }
+
         }
 
 

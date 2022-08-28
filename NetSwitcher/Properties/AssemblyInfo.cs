@@ -10,9 +10,9 @@ using System.Windows;
 [assembly: AssemblyTitle("NetSwicher")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
-[assembly: AssemblyCompany("")]
+[assembly: AssemblyCompany("DESKTOP-PROH4VM/422")]
 [assembly: AssemblyProduct("NetSwicher")]
-[assembly: AssemblyCopyright("Copyright ©  2022")]
+[assembly: AssemblyCopyright("DESKTOP-PROH4VM/422")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
