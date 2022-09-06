@@ -8,6 +8,19 @@
 
     <Application.Resources>
         <ContextMenu x:Key="SysTrayMenu" x:Shared="false">
+            <MenuItem
+                Command="{Binding OpenHome}"
+                Header="打开 &quot;home&quot;"
+                IsEnabled="{Binding IsConnectOK}" />
+            <MenuItem
+                Command="{Binding OpenHomes}"
+                Header="打开 &quot;homes&quot;"
+                IsEnabled="{Binding IsConnectOK}" />
+            <MenuItem
+                Command="{Binding OpenSharedFiles}"
+                Header="打开 &quot;SharedFiles&quot;"
+                IsEnabled="{Binding IsConnectOK}" />
+            <Separator />
             <MenuItem Command="{Binding ExitApplication}" Header="退出" />
         </ContextMenu>
         <tb:TaskbarIcon

@@ -13,6 +13,7 @@ using System.Runtime.InteropServices;
 using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using Microsoft.Win32;
+using System.Net.NetworkInformation;
 
 namespace NetSwitcher
 {
@@ -145,30 +146,87 @@ namespace NetSwitcher
 
             return false;
         }
-
-        public NotifyIconViewModel()
+        private bool CheckIsOnline()
         {
-            Status = "处理中";
+            Ping ping = new Ping();
+            PingReply pingReply = ping.Send("192.168.31.76",500);
+            if (pingReply.Status == IPStatus.Success)
+            {
+                return true;
+            }
+            return false;
+        }
+        private void SetState(bool state)
+        {
+            if (state)
+            {
+                Status = "已连接到DiskStation422";
+            }
+            else
+            {
+                Status = "DiskStation422已断开连接";
+            }
+        }
+        private void ChangeNetState(bool state)
+        {
             var connections = NetSharingMgr.EnumEveryConnection;
             foreach (INetConnection connection in connections)
             {
-                INetConnectionProps connProps = NetSharingMgr.get_NetConnectionProps(connection);
-                
-                if (connProps.Name == "以太网")
+                var current_prop = NetSharingMgr.get_NetConnectionProps(connection);
+                if (current_prop.Name == "以太网")
                 {
-                    if (connProps.Status.ToString().Contains("DIS"))
+                    if (current_prop.Status.ToString().Contains("DIS") && state==true)
                     {
-                        Status = "未连接";
-                        break;
+                        try
+                        {
+                            connection.Connect();
+                        }
+                        catch { }
                     }
-                    else
+                    else if(!current_prop.Status.ToString().Contains("DIS") && state == false)
                     {
-                        Status = "已连接";
-                        break;
+                        try
+                        {
+                            connection.Disconnect();
+                        }
+                        catch { }
                     }
+                    break;
                 }
             }
         }
+        private void OpenFolder(string folderPath)
+        {
+            if (string.IsNullOrEmpty(folderPath)) return;
+
+            Process process = new Process();
+            ProcessStartInfo psi = new ProcessStartInfo("Explorer.exe");
+            psi.Arguments = folderPath;
+            process.StartInfo = psi;
+
+            try
+            {
+                process.Start();
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+            finally
+            {
+                process?.Close();
+
+            }
+
+        }
+        public NotifyIconViewModel()
+        {
+            Status = "处理中";
+            SetState(CheckIsOnline());
+        }
+        private bool isConnectOK;
+
+        public bool IsConnectOK { get => isConnectOK; set => SetProperty(ref isConnectOK, value); }
 
         private string status;
 
@@ -181,14 +239,17 @@ namespace NetSwitcher
                 if(status == "处理中")
                 {
                     Icon = "/icon/busy.ico";
+                    IsConnectOK = false;
                 }
-                else if(status == "已连接")
+                else if(status.Contains("已连接"))
                 {
                     Icon = "/icon/connected.ico";
+                    IsConnectOK = true;
                 }
                 else
                 {
                     Icon = "/icon/unconnect.ico";
+                    IsConnectOK = false;
                 }
             }
         }
@@ -218,74 +279,32 @@ namespace NetSwitcher
         {
             if (Status == "处理中") return;
             Status = "处理中";
-            bool is_current_connect = false;
-            var connections = NetSharingMgr.EnumEveryConnection;
-            foreach (INetConnection connection in connections)
-            {
-                var current_prop = NetSharingMgr.get_NetConnectionProps(connection);
-                if (current_prop.Name == "以太网")
-                {
-                    if(current_prop.Status.ToString().Contains("DIS"))
-                    {
-                        try
-                        {
-                            is_current_connect = false;
-                            connection.Connect();
-                        }
-                        catch { }
-                    }
-                    else
-                    {
-                        try
-                        {
-                            is_current_connect = true;
-                            connection.Disconnect();
-                        }
-                        catch { }
-                    }
-                    break;
-                }
-            }
-            while (true)
-            {
-                bool is_next_connect = false;
-                var connections1 = NetSharingMgr.EnumEveryConnection;
-                foreach (INetConnection connection in connections1)
-                {
-                    var current_prop = NetSharingMgr.get_NetConnectionProps(connection);
-                    if (current_prop.Name == "以太网")
-                    {
-                        if (current_prop.Status.ToString().Contains("DIS"))
-                        {
-                            is_next_connect = false;
-                        }
-                        else
-                        {
-                            is_next_connect = true;
-                        }
-                        break;
-                    }
-                }
+            bool is_current_connect = CheckIsOnline();
+            ChangeNetState(!CheckIsOnline());
 
-                if(is_next_connect != is_current_connect)
+            Ping ping = new Ping();
+            var iWait = 20;
+            while (true && iWait>0)
+            {
+                PingReply pingReply = ping.Send("192.168.31.76", 500);
+                if (pingReply.Status == IPStatus.Success && !is_current_connect)
                 {
-                    if(is_next_connect)
-                    {
-                        Status = "已连接";
-                    }
-                    else
-                    {
-                        Status = "未连接";
-                    }
-                    break;
+                    SetState(true);
+                    OpenFolder(@"\\lab422");
+                    return;
                 }
+                else if(pingReply.Status != IPStatus.Success && is_current_connect)
+                {
+                    SetState(false);
+                    return;
+                }
+                iWait--;
             }
 
         }
 
 
         private RelayCommand exitApplication;
-
         public ICommand ExitApplication
         {
             get
@@ -298,10 +317,68 @@ namespace NetSwitcher
                 return exitApplication;
             }
         }
-
         private void PerformExit()
         {
             Application.Current.Shutdown();
         }
+
+
+        private RelayCommand openHome;
+        public ICommand OpenHome
+        {
+            get
+            {
+                if (openHome == null)
+                {
+                    openHome = new RelayCommand(PerformOpenHome);
+                }
+
+                return openHome;
+            }
+        }
+        private void PerformOpenHome()
+        {
+            OpenFolder(@"\\lab422\home");
+        }
+
+        private RelayCommand openHomes;
+        public ICommand OpenHomes
+        {
+            get
+            {
+                if (openHomes == null)
+                {
+                    openHomes = new RelayCommand(PerformOpenHomes);
+                }
+
+                return openHomes;
+            }
+        }
+        private void PerformOpenHomes()
+        {
+            OpenFolder(@"\\lab422\homes");
+        }
+
+        private RelayCommand openSharedFiles;
+        public ICommand OpenSharedFiles
+        {
+            get
+            {
+                if (openSharedFiles == null)
+                {
+                    openSharedFiles = new RelayCommand(PerformOpenSharedFiles);
+                }
+
+                return openSharedFiles;
+            }
+        }
+        private void PerformOpenSharedFiles()
+        {
+            OpenFolder(@"\\lab422\sharedfiles");
+        }
+
+
+
+
     }
 }
